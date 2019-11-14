@@ -34,11 +34,14 @@ public:
 	CMenu m_menu;
 	afx_msg void OnBnClickedButton1();
 	CListCtrl m_listProcess;
+	int sort_column;  // 表示需要排序的列
+	static bool method;  //类内申明
+	static int CALLBACK listCompare(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort);
 	
 	afx_msg void OnNMRClickList1(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void On32771();
 	afx_msg void OnCustomdrawList1(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void On32772();
-	afx_msg void On32775();
 	afx_msg void EnumMode();
+	afx_msg void OnColumnclickList1(NMHDR *pNMHDR, LRESULT *pResult);
 };

@@ -22,6 +22,7 @@
 
 TCHAR	g_szDllPath[MAX_PATH] = { 0 };//Dll路径
 HMODULE g_hModeue;//模块句柄
+bool CMFCinjectDlg::method = true;  // 类外定义
 CMFCinjectDlg::CMFCinjectDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_MFCINJECT_DIALOG, pParent)
 {
@@ -43,6 +44,7 @@ BEGIN_MESSAGE_MAP(CMFCinjectDlg, CDialogEx)
 	ON_NOTIFY(NM_CUSTOMDRAW, IDC_LIST1, &CMFCinjectDlg::OnCustomdrawList1)
 	ON_COMMAND(ID_32772, &CMFCinjectDlg::On32772)
 	ON_COMMAND(ID_32775, &CMFCinjectDlg::EnumMode)
+	ON_NOTIFY(LVN_COLUMNCLICK, IDC_LIST1, &CMFCinjectDlg::OnColumnclickList1)
 END_MESSAGE_MAP()
 
 
@@ -134,6 +136,47 @@ void CMFCinjectDlg::OnBnClickedButton1()
 	m_listProcess.Scroll(CSize(0, 100000));
 
 }
+struct DATA
+
+{
+
+	int subitem;// 点击表头的列数
+
+	CListCtrl* plist; //listctrl的指针
+
+};
+int CALLBACK CMFCinjectDlg::listCompare(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort)
+{
+	DATA* pListCtrl = (DATA*)lParamSort;
+	int sort_column = pListCtrl->subitem;
+	// 从参数中提取所需比较lc的两行数据
+	int row1 = (int)lParam1;
+	int row2 = (int)lParam2;
+	CListCtrl* lc = (CListCtrl*)lParamSort;
+
+	CString lp1 = (pListCtrl->plist)->GetItemText(lParam1, sort_column);
+	CString lp2 = (pListCtrl->plist)->GetItemText(lParam2, sort_column);
+
+	// 比较，对不同的列，不同比较，注意记录前一次排序方向，下一次要相反排序
+	if (sort_column == 0 )  //根据列的数据类型选择比较的类型
+	{
+		// int型比较
+		if (method)
+			return _ttoi(lp1) - _ttoi(lp2);
+		else
+			return _ttoi(lp2) - _ttoi(lp1);
+	}
+	    else
+	{
+		// 文字型比较
+		if (method)
+			return lp1.CompareNoCase(lp2);
+		else
+			return lp2.CompareNoCase(lp1);
+	}
+	    return 0;
+}
+
 
 //右键菜单
 void CMFCinjectDlg::OnNMRClickList1(NMHDR *pNMHDR, LRESULT *pResult)
@@ -228,7 +271,7 @@ void inject(DWORD dwPid, LPWSTR dllPath)
 		dllPath,					// 写入的缓冲区
 		wcslen(dllPath) * 2 + 2,	// 缓冲区大小
 		&dwWriteSize);				// 实际写入大小
-	
+
 	// 4.在目标进程中创建线程
 	HANDLE hThread = CreateRemoteThread(
 		hProcess,					// 目标进程句柄
@@ -251,9 +294,9 @@ void inject(DWORD dwPid, LPWSTR dllPath)
 
 enum COLOR
 {
-	COLOR_RED,
-	COLOR_GREEN,
-	COLOR_BLUE,
+	COLOR_RED=-2,
+	COLOR_GREEN=-3,
+	COLOR_BLUE=-4,
 };
 //注入
 void CMFCinjectDlg::On32771()
@@ -269,15 +312,15 @@ void CMFCinjectDlg::On32771()
 	BROWSEINFO		sInfo;
 	::ZeroMemory(&sInfo, sizeof(BROWSEINFO));
 	sInfo.pidlRoot = 0;
-	sInfo.lpszTitle = _T("请选择一个文件夹：");
+	sInfo.lpszTitle = _T("请选择一个文件：");
 	sInfo.ulFlags = BIF_DONTGOBELOWDOMAIN | BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE | BIF_EDITBOX | BIF_USENEWUI | BIF_BROWSEINCLUDEFILES;
 	sInfo.lpfn = NULL;
 
-	// 显示文件夹选择对话框
+	// 显示文件选择对话框
 	LPITEMIDLIST lpidlBrowse = ::SHBrowseForFolder(&sInfo);
 	if (lpidlBrowse != NULL)
 	{
-		// 取得文件夹名
+		// 取得文件名
 		if (::SHGetPathFromIDList(lpidlBrowse, g_szDllPath))
 		{
 			inject(dwpid, g_szDllPath);
@@ -292,15 +335,15 @@ void CMFCinjectDlg::On32771()
 		return;
 	}
 	//判断是否注入成功
-	if (CheckModule(dwpid,&mmodule))
+	if (CheckModule(dwpid, &mmodule))
 	{
-		MessageBox(L"注入成功",0, 0);
+		MessageBox(L"注入成功", 0, 0);
 		m_listProcess.SetItemData(index, COLOR_RED);
 		SetDlgItemText(IDC_DLLPATH, g_szDllPath);
 
 	}
-	else 
-		MessageBox( L"注入失败", 0,0);
+	else
+		MessageBox(L"注入失败", 0, 0);
 
 }
 
@@ -342,15 +385,15 @@ void CMFCinjectDlg::OnCustomdrawList1(NMHDR *pNMHDR, LRESULT *pResult)
 	*pResult |= CDRF_NOTIFYPOSTPAINT;
 	*pResult |= CDRF_NOTIFYITEMDRAW;
 	return;
-	
+
 }
 
 //卸载
 void CMFCinjectDlg::On32772()
 {
-	if (g_szDllPath==0)
+	if (g_szDllPath == 0)
 	{
-		MessageBox(L"Dll路径为空",0, 0);
+		MessageBox(L"Dll路径为空", 0, 0);
 		return;
 	}
 	int index = (int)m_listProcess.GetFirstSelectedItemPosition();
@@ -361,15 +404,15 @@ void CMFCinjectDlg::On32772()
 	CString CSPid = m_listProcess.GetItemText(index, 0);//PID
 	DWORD dwpid = _ttoi(CSPid);
 	std::vector<MODULEENTRY32> mmodule;
-	if (!CheckModule(dwpid,&mmodule))
+	if (!CheckModule(dwpid, &mmodule))
 	{
 		CString buffer;
 		buffer.Format(L"该进程未注入%s", g_szDllPath);
-		MessageBox(buffer ,0, 0);
+		MessageBox(buffer, 0, 0);
 		return;
 	}
 	unInject(dwpid);
-	if (!CheckModule(dwpid,&mmodule))
+	if (!CheckModule(dwpid, &mmodule))
 	{
 		MessageBox(L"卸载成功", 0, 0);
 		m_listProcess.SetItemData(index, -1);
@@ -393,4 +436,23 @@ void CMFCinjectDlg::EnumMode()
 	CModule mModule;
 	CheckModule(dwPid, &mModule.mmodule);
 	mModule.DoModal();
+}
+
+//点击列表头
+void CMFCinjectDlg::OnColumnclickList1(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	LPNMLISTVIEW pNMLV = reinterpret_cast<LPNMLISTVIEW>(pNMHDR);
+	sort_column = pNMLV->iSubItem;//点击的列
+
+	int count = m_listProcess.GetItemCount();
+	for (int i = 0; i < count; i++)
+		m_listProcess.SetItemData(i, i);
+
+	DATA data;
+	data.subitem = sort_column;
+	data.plist = &m_listProcess;
+
+	method = !method;
+	m_listProcess.SortItems(listCompare, (LPARAM)&data);
+	*pResult = 0;
 }
